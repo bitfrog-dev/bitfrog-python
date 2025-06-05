@@ -17,6 +17,9 @@ class ChannelException(Exception):
 class ProjectException(Exception):
     """A project exception."""
 
+class NotificationException(Exception):
+    """A project exception."""
+
 def is_valid_token(token: str) -> bool:
     """
     Check if a tokens format is valid or not.
@@ -35,16 +38,34 @@ def is_valid_token(token: str) -> bool:
     return re.fullmatch(r"^[\da-fA-F]{4}-[\da-fA-F]{4}-[\da-fA-F]{4}-[\da-fA-F]{4}$",
                         token) is not None
 
-def ping(timeout: requests.Timeout | None = None) -> bool:
+def ping(token: str = None, channel: str = None, timeout: requests.Timeout | None = None) -> bool:
     """Pings the server to check if it's responding.
 
     Args:
+        token (str, optional): The token for the project you'd like to ping.
+        channel (str, optional): The name of the channel you'd like to ping, 
+                                 MUST be used with token.
         timeout (Timeout, optional): The timeout for the request.
 
     Returns:
         bool: Whether the server responds or not.
     """
-    r = requests.get(ENDPOINT + "/ping", timeout=timeout)
+    url = ENDPOINT + "/ping?"
+    
+    if(channel and not token):
+        raise TokenException("You must provide a token when pinging a channel.")
+    
+    if(token):
+        if not is_valid_token(token):
+            raise TokenException("The token provided is not correctly formatted.")
+        safe_token = urllib.parse.quote(token)
+        url += f"token={safe_token}"
+    
+    if(channel):
+        safe_channel = urllib.parse.quote(channel)
+        url += f"&channel={safe_channel}"
+
+    r = requests.get(url, timeout=timeout)
 
     return r.ok
 
@@ -65,18 +86,25 @@ def notify(message: str, token: str, title: str = None,
     if not is_valid_token(token):
         raise TokenException("The token provided is not correctly formatted.")
 
-    safe_message = urllib.parse.quote_plus(message)
-    safe_token = urllib.parse.quote_plus(token)
-    safe_title = urllib.parse.quote_plus(title)
-    safe_channel = urllib.parse.quote_plus(channel)
+    safe_message = urllib.parse.quote(message)
+    safe_token = urllib.parse.quote(token)
 
     url = f"{ENDPOINT}/notify?token={safe_token}&message={safe_message}"
     if title is not None :
+        safe_title = urllib.parse.quote(title)
         url += f"&title={safe_title}"
     if channel is not None:
+        safe_channel = urllib.parse.quote(channel)
         url += f"&title={safe_channel}"
 
-    requests.get(url, timeout=timeout)
+    r = requests.get(url, timeout=timeout)
+
+    if(not r.ok):
+        try:
+            error_code = r.json()["error"]
+        except:
+            error_code = "UNKNOWN"
+        raise NotificationException(f"The notification failed to send. Error code: {error_code}")
 
 class Channel:
     """
@@ -98,7 +126,7 @@ class Channel:
         self.project_token = project_token
         self.name = name
 
-        if check:
+        if check and not ping(self.project_token, self.name):
             raise ChannelException("This channel does not exist.")
 
     def notify(self, message: str, title: str = None, timeout: requests.Timeout | None = None):
@@ -131,7 +159,7 @@ class Project:
 
         self.token = token
 
-        if check:
+        if check and not ping(self.token):
             raise ProjectException("This project does not exist.")
 
     def channel(self, name: str, check=False) -> Channel:
@@ -148,7 +176,7 @@ class Project:
         Returns:
             Channel: The channel requested.
         """
-        if check:
+        if check and not ping(self.token, name):
             raise ChannelException("This channel does not exist.")
 
         return Channel(self.token, name)
