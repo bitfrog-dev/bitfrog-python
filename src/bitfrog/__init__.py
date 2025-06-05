@@ -90,12 +90,14 @@ def notify(message: str, token: str, title: str = None,
     safe_token = urllib.parse.quote(token)
 
     url = f"{ENDPOINT}/notify?token={safe_token}&message={safe_message}"
+    
     if title is not None :
         safe_title = urllib.parse.quote(title)
         url += f"&title={safe_title}"
+
     if channel is not None:
         safe_channel = urllib.parse.quote(channel)
-        url += f"&title={safe_channel}"
+        url += f"&channel={safe_channel}"
 
     r = requests.get(url, timeout=timeout)
 
