@@ -5,8 +5,31 @@ A Python API for Bitfrog notifications.
 import urllib.parse
 import re
 import requests
+import logging
 
 ENDPOINT = "http://localhost:9000/v1"
+
+class ColoredFormatter(logging.Formatter):
+        RESET = "\x1b[0m"
+        COLORS = {
+            logging.WARNING: "\x1b[33;20m",
+            logging.ERROR: "\x1b[31;20m",
+            logging.CRITICAL: "\x1b[31;20m",
+            logging.INFO: "",
+            logging.DEBUG: ""
+        }
+
+        def format(self, record):
+            color = ""
+            if(record.levelno in self.COLORS):
+                color = self.COLORS[record.levelno]
+            return color + super().format(record=record) + self.RESET
+
+logger = logging.getLogger("Bitfrog")
+formatter = ColoredFormatter('%(asctime)s - (%(name)s) [%(levelname)s]: %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
+handler = logging.StreamHandler()
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 class TokenException(Exception):
     """A project token Exception"""
@@ -19,6 +42,16 @@ class ProjectException(Exception):
 
 class NotificationException(Exception):
     """A project exception."""
+
+class RateLimitException(Exception):
+    """A project exception."""
+
+def _response_handler(r: requests.Response):
+    try:
+        data = r.json()
+        if("warning" in data):
+            logger.warning(data["warning"])
+    except: pass
 
 def is_valid_token(token: str) -> bool:
     """
@@ -66,6 +99,7 @@ def ping(token: str = None, channel: str = None, timeout: requests.Timeout | Non
         url += f"&channel={safe_channel}"
 
     r = requests.get(url, timeout=timeout)
+    _response_handler(r)
 
     return r.ok
 
@@ -100,8 +134,11 @@ def notify(message: str, token: str, title: str = None,
         url += f"&channel={safe_channel}"
 
     r = requests.get(url, timeout=timeout)
+    _response_handler(r)
 
     if(not r.ok):
+        if(r.status_code == 429):
+            raise RateLimitException(r.text)
         try:
             error_code = r.json()["error"]
         except:
