@@ -1,5 +1,5 @@
-# Bitfrog Python
-*A Python API for Bitfrog notifications.*
+# Bitfrog Python API
+*A Python API for easy push notifications through Bitfrog.*
 
 **IMPORTANT**: Bitfrog has not been released yet, this package will not be useful until it has.
 
