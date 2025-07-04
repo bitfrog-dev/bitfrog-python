@@ -7,7 +7,7 @@ import re
 import requests
 import logging
 
-ENDPOINT = "http://localhost:9000/v1"
+ENDPOINT = "https://bitfrog.dev/v1"
 
 class ColoredFormatter(logging.Formatter):
         RESET = "\x1b[0m"
